@@ -1,2 +1,2 @@
 # SONMF
-Code for "Topic Modeling on Triage Notes with Semi-orthogonal Non-negative Matrix Factorization"
+Code for reproducing the results in "Topic Modeling on Triage Notes with Semi-orthogonal Non-negative Matrix Factorization".
