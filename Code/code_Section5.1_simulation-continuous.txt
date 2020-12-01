@@ -1,0 +1,295 @@
+
+# Simulation for Continuous Case (Section 5.1)
+
+#######################################################################
+##### Section 5.1 #####
+#######################################################################  
+
+###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
+### Run Simulation and Generate Results ###
+###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
+
+# Set up the parameters of the run
+n = 100                  # Number of trials to simulate
+values = c(10, 30, 50)   # Rank k = 10, 30, 50 of simulated true F and G
+ncores = 8               # Used 8 cores to run
+size = 500               # Number of rows of simulated true F and G, results in an nXn matrix X
+iter = 500               # Number of max iterations to run the algorithm
+
+#==================================================================#
+# Run the full 500 iterations to get the plots
+
+########################################################
+## Scenario 1 (Figure 2) ##
+full.1 = parallel.run(n, ncores, 1, size, values, iter, 1e-99)
+res.1 = mean.fun(full.1, 1)
+
+plot.fun(res.1, 1, 10, "1_10", 1:500, c(0, 1.7))   # Left
+plot.fun(res.1, 2, 30, "1_30", 1:500, c(0, 3.1))   # Middle
+plot.fun(res.1, 3, 50, "1_50", 1:500, c(0, 4.2))   # Right
+
+########################################################
+## Scenario 2(Figure 3) ##
+full.2 = parallel.run(n, ncores, 2, size, values, iter, 1e-99)
+res.2 = mean.fun(full.2, 1)
+
+plot.fun(res.2, 1, 10, "2_10", 1:100, c(0.04, 0.31))   # Left
+plot.fun(res.2, 2, 30, "2_30", 1:100, c(0.04, 0.31))   # Middle
+plot.fun(res.2, 3, 50, "2_50", 1:100, c(0.04, 0.31))   # Right
+
+########################################################
+## Scenario 3 (Figure 4) ##
+full.3 = parallel.run(n, ncores, 3, size, values, iter, 1e-99)
+res.3 = mean.fun(full.3, 1)
+
+plot.fun(res.3, 1, 10, "3_10", 1:500, c(0.079, 0.091))   # Left 
+plot.fun(res.3, 2, 30, "3_30", 1:500, c(0.04, 0.31))     # Middle
+plot.fun(res.3, 3, 50, "3_50", 1:500, c(0, 4.2))         # Right
+
+#==================================================================#
+# Run 500 iterations or until the tolerance level is reached 
+
+## Scenario 1 (Table 1) ##
+tol.1 = parallel.run(n, ncores, 1, size, values, iter, 1e-4)
+rest.1 = mean.fun(tol.1, 2)
+
+## Scenario 2 (Table 2) ##
+tol.2 = parallel.run(n, ncores, 2, size, values, iter, 1e-4)
+rest.2 = mean.fun(tol.2, 2)
+
+## Scenario 3 (Table 3) ##
+tol.3 = parallel.run(n, ncores, 3, size, values, iter, 1e-4)
+rest.3 = mean.fun(tol.3, 2)
+
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+
+## Create the true underlying F and G matrix ##
+
+#' n: The number of rows of F and G
+#' k: The true rank of F and G
+#' mode: Determine which setting of F to use (1 = non-negative, 
+#                                             2 = non-negative orthogonal, 
+#                                             3 = orthonormal)
+
+create.mat = function(n, k, mode) {
+  # Create the true G matrix
+  g = matrix(runif(n * k, 0, 2), n, k)
+  
+  # Create the true F matrix 
+  if (mode == 1) {
+    f = matrix(runif(n * k, 0, 1), n, k)
+    
+  } else if (mode == 2) {
+    f = diag(runif(k, 0, 2))
+    for (i in 1:(n / k - 1)) {
+      dum = diag(runif(k, 0, 2))
+      f = rbind(f, dum)
+    }
+    if (k == 30) {
+      dum.2 = diag(runif(k, 0, 1)); dum.2 = dum.2[1:(n - nrow(f)),]
+      f = rbind(f, dum.2)
+    }
+    
+  } else if (mode == 3) {
+    f = randortho(n)
+    f = f[,1:k] %*% diag(runif(k))
+  }
+  
+  # Construct X using true F and G with an additional error matrix 
+  X = f %*% t(g) + matrix(rnorm(n * n, 0, 0.3), n, n)
+  
+  # Enforce non-negativity on X for the first two non-negative simulation settings
+  if (mode == 1 || mode == 2) {
+    X[X < 0] = 0
+  }
+  
+  return(list(X = X, F = f, G = g))
+}
+
+
+## Function to calculate the error between the 
+#  projection matrix of the true F and G and the factorized F and G 
+
+error.fun = function(F.1, G.1, F.proj, G.proj) {
+  F.p = F.1 %*% pseudoinverse(t(F.1) %*% F.1) %*% t(F.1)
+  F.err = sqrt(sum((F.p - F.proj)^2))
+  
+  G.p = G.1 %*% pseudoinverse(t(G.1) %*% G.1) %*% t(G.1)
+  G.err = sqrt(sum((G.p - G.proj)^2))
+  res = c(F.err, G.err)
+  
+  return(res)
+}
+
+## Run simulation using all four methods (SONMF, Semi-NMF, ONMF, NMF) on the specified mode
+
+#' n: The number of rows of F, G, and consequently X
+#' values: A vector of ranks to be considered and decomposed   
+#' iter: Number of iterations to run
+#' tol: Stop the algorithm if the change of the 
+#' loss funtion between two iterations is less than this value
+#' mode: The true structure of the F and G matrix
+
+test.fun = function(n, values, iter, tol, mode) {
+  
+  result_full = c()
+  error_list = list()
+  count = 1
+  
+  for (k in values) {
+    
+    # Create true X, then calculate the true errors
+    X.mat = create.mat(n, k, mode); X = X.mat$X
+    F.proj = X.mat$F %*% solve(t(X.mat$F) %*% X.mat$F) %*% t(X.mat$F)
+    G.proj = X.mat$G %*% solve(t(X.mat$G) %*% X.mat$G) %*% t(X.mat$G)
+    true.err = mean((X.mat$X - X.mat$F %*% t(X.mat$G))^2)
+    
+    # Our Method #
+    ptm = proc.time();
+    X.so.nmf = nmf.main(X, 1, k, "sonmf", "svd", iter, tol, tau = 1, sparse_svd = F)
+    time = proc.time() - ptm
+    error.1 = error.fun(X.so.nmf$F, X.so.nmf$G, F.proj, G.proj)
+    res.sonmf = c(k, X.so.nmf$final_result, mean(X.so.nmf$F == 0), mean(X.so.nmf$G == 0), 
+                  error.1, time[3]) # Results
+    
+    # Semi NMF #
+    ptm = proc.time();
+    X.semi = nmf.main(X, 1, k, "semi", "kmeans", iter, tol)
+    time = proc.time() - ptm; 
+    error.2 = error.fun(X.semi$F, X.semi$G, F.proj, G.proj)
+    res.semi = c(k, X.semi$final_result[1], NA, X.semi$final_result[2], mean(X.semi$F == 0), 
+                 mean(X.semi$G == 0), error.2, time[3])
+    
+    if (mode == 1 || mode == 2) {
+      # Orthogonal NMF(HALS)
+      ptm = proc.time()
+      X.o.nmf = nmf.main(X, 1, k, "onmf", "svd", iter, tol, sparse_svd = F) 
+      time = proc.time() - ptm
+      error.3 = error.fun(X.o.nmf$F, X.o.nmf$G, F.proj, G.proj)
+      res.onmf = c(k, X.o.nmf$final_result,
+                   mean(X.o.nmf$F == 0), mean(X.o.nmf$G == 0), error.3, time[3]) # Results
+      
+      # Lee & Seung NMF
+      ptm = proc.time()
+      X.nmf = nmf.main(X, 1, k, "nmf", "svd", iter, tol, sparse_svd = F)
+      time = proc.time() - ptm
+      error.4 = error.fun(X.nmf$F, X.nmf$G, F.proj, G.proj)
+      res.nmf = c(k, X.nmf$final_result[1], NA, X.nmf$final_result[2], 
+                  mean(X.nmf$F == 0), mean(X.nmf$G == 0) ,error.4, time[3])
+      
+      result = rbind(res.sonmf, res.semi, res.onmf, res.nmf)
+      error = cbind(X.so.nmf$info[,2], X.semi$info[,2], 
+                    X.o.nmf$info[,2], X.nmf$info[,2], X.so.nmf$info[,3], X.o.nmf$info[,3])
+      colnames(error) = c("SONMF_res","Semi_res","ONMF_res", 
+                          "NMF_res", "SONMF_ortho","ONMF_ortho")
+      
+    } else {
+      result = rbind(res.sonmf, res.semi)
+      error = cbind(X.so.nmf$info[,2], X.semi$info[,2])
+      colnames(error) = c("SONMF_res","Semi_res")
+    }
+    
+    result_full = rbind(result_full, result)
+    error_list[[count]] = list(k = k, info = error, error = true.err)
+    count = count + 1
+    print(paste0("K = ", k))
+  }
+  
+  colnames(result_full) = c("k","res","orth","iter", "F sparse", 
+                            "G sparse","F.err", "G.err", "time")
+  
+  # Reorganize the results table
+  result_full = result_full[,c(1,2,3,7,8,5,6,9,4)]
+  error_list[[count]] = result_full
+  return(error_list)
+}
+
+## Function to run the simulation trials in parallel
+parallel.run = function(n, cores, mode, size, values, iter, tol) {
+  
+  if (cores > detectCores()) {
+    cores = detectCores()
+    warning("Input number of clusters is greater than the number 
+            of clusters on the current machine.")
+  } else if (cores < 1) {
+    cores = 1
+    warning("Input number of clusters is less than 1. Uses 1 core instead.")
+  }
+  
+  # Set seed for reproducibility
+  set.seed(1)
+  
+  cl = makeCluster(cores)
+  registerDoParallel(cl)
+  run = foreach (i = 1:n, .packages = c("foreach", "irlba", "doParallel", "MatrixFact",
+                                        "corpcor", "pracma", "doRNG"), .verbose = F,
+                 .export= c("create.mat", "test.fun", "error.fun")) %dorng% {
+                   test.fun(size, values, iter, tol, mode)
+                 }
+  stopCluster(cl)
+  
+  # Averaged the results over multiple runs
+  return(run)
+}
+
+
+## Function to calculate the mean statistics 
+mean.fun = function(list, mode) {
+  
+  if (mode == 1) {
+    res.10 = list[[1]][[1]]$info
+    res.30 = list[[1]][[2]]$info
+    res.50 = list[[1]][[3]]$info
+    t.err = list[[1]][[3]]$error  
+  }
+  tab = list[[1]][[4]]
+  for (i in 2:length(list)) {
+    if (mode == 1) {
+      res.10 = res.10 + list[[i]][[1]]$info
+      res.30 = res.30 + list[[i]][[2]]$info
+      res.50 = res.50 + list[[i]][[3]]$info
+      t.err = t.err + list[[i]][[3]]$error  
+    }
+    tab = tab + list[[i]][[4]]
+  }
+  if (mode == 1) {
+    res.10 = res.10 / length(list)
+    res.30 = res.30 / length(list)
+    res.50 = res.50 / length(list)
+    t.err = t.err/ length(list)  
+  }
+  tab = tab / length(list)
+  if (mode == 1) {
+    return(list(res.10 = res.10, res.30 = res.30, 
+                res.50 = res.50, error = t.err, info = tab))  
+  }
+  return(tab)
+}
+
+# Plot the log of the normalized residual for better visibility
+plot.fun = function(res, index, k, file, xrange, yrange) {
+  
+    # Use the Cairo package for better plot resolution 
+  # Outputs to local drive (Comment out if want to plot to console)
+  png(filename=paste0(file, ".jpg"), 
+      type="cairo",
+      units="in", 
+      width=5, 
+      height=4, 
+      pointsize=12, 
+      res=144)
+  
+  # Plot the figures
+  res.temp = res[[index]]
+  log.res = log(res.temp + 1)
+  plot(log.res[xrange,1], col = "red", type = "l", lty = 2, lwd = 2, main = paste0("K = ", k), 
+       xlab = "Iterations", ylab = "", ylim = yrange)
+  lines(log.res[xrange,2], col = "black", type = "l", lwd = 2, lty = 3)
+  lines(log.res[xrange,3], col = "blue", type = "l", lwd = 2, lty = 4)
+  lines(log.res[xrange,4], col = "green", type = "l", lwd = 2, lty = 5)
+  abline(h = log(res$summary[1] + 1), col = "purple")
+  legend("topright", legend = c("SONMF", "NMF", "ONMF", "Semi", "True Error"),
+         col = c("red", "green", "blue", "black", "purple"), lty = c(2, 5, 4, 3, 1))
+  dev.off()
+}

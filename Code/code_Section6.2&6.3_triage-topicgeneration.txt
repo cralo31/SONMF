@@ -1,0 +1,267 @@
+################################################################
+####### Generate the topic vectors ############
+################################################################
+
+# Note that the datasets we used in the manuscript for this section are the "Lower Extremity Injury"
+# and "Symptoms of Stroke". Due to privacy issues, these datasets are not available to the public. However,
+# the analysis for these datasets are identical to the "Altered Level of Consciousness" dataset.
+
+###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
+### Run Simulation and Generate Results ###
+###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
+
+# Generate word-topics for the "Altered Level of Consiousness Dataset"
+# "Lower Extremity Injury" in manuscript (Figure 6)
+
+# Read data (Change to your local directory)
+dataset = "Altered_Level_of_Consciousness"
+dset = read_csv(paste0("./", dataset, ".csv"))
+
+# Clean data
+word.mat = clean.dat(dset, 'tfidf')
+
+# Perform Matrix Factorization on word matrix
+alc_sonmf_topics = topics(word.mat, 10, "sonmf", 1031) 
+alc_nmf_topics = topics(word.mat, 10, "nmf", 1031) 
+
+############################################################################
+# Correlation heatmap (Figure 6)
+sonmf_heat = pheatmap(cor(alc_sonmf_topics$F), cluster_rows = F, cluster_cols = F)
+nmf_heat = pheatmap(cor(alc_nmf_topics$F), cluster_rows = F, cluster_cols = F)
+
+############################################################################
+# Generate top word-topics for the "Altered Level of Consiousness Dataset" 
+# "Lower Extremity Injury" (Table 8) and "Symptoms of Stroke" (Table 9) in manuscript
+alc_sonmf = wrapTopic(dataset, 10, "sonmf", 1031, 10, 10)
+alc_nmf = wrapTopic(dataset, 10, "nmf", 1031, 10, 10)
+
+############################################################################
+# Document-Topic Vectors Violin Plot (Figure 7)
+resp = dset$DISPOSITION
+sonmf_vio = plot.vio(resp, alc_sonmf, 5, "SONMF")
+
+############################################################################
+# Document topic representation of triage notes (Table 10)
+alc_doc_topic = topicForDoc(alc_sonmf, dataset)
+alc_doc_topic$notes[1,]
+alc_doc_topic$posi
+
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+
+##############################################################################
+# Clean data and generate document-term matrix with tfidf or binary weighing #
+
+clean.dat = function(dset, weight) {
+  
+  # Retain only notes and response variable
+  dat = dset[,c(12,1)]
+  colnames(dat) = c("notes", "y")
+  dat$y = ifelse(dat$y == "D", 0, 1)
+  
+  # Some manual words cleaning 
+  dat$notes = gsub("c/o","co", dat$notes, ignore.case=TRUE)
+  dat$notes = gsub("NA|Unknown","", dat$notes, ignore.case = TRUE )
+  dat$notes = gsub("abd|abdo|abdomen|abdomin|abdominal","abdominal", dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("urination|urinary|urinari|urine|urin", "urine", dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("wor|wors|worse|worsen","worsen", dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("bleed|blood","blood",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("vomiting|vomiting|vomitting","vomit",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("triag|dat","dat",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("unabl|unable","unable",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("nausea|nauseat|nauseated|nauseating|nauseate","nauseat",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("non|no","no", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub("lt","left",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("rt","right",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub( "\\<n v d\\> | \\<nv d\\> |  \\<n vd\\>", "nvd", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub( "\\<n v\\>", "nv ", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub( "\\<v d\\>", "vd ", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub("D/T", "dt", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub( "[^[:alnum:][:space:]']", " ", dat$notes)
+  
+  # Standard text mining data cleaning techniques via tm package
+  # Remove numbers, punctuation, and most stop words (ecluding negation) 
+  # Lower case all words
+  oldw <- getOption("warn")
+  corpus = VCorpus(VectorSource(dat$notes))
+  cleanDataCorpus <- tm_map(corpus, removePunctuation) 
+  cleanDataCorpus <- tm_map(cleanDataCorpus, removeNumbers)
+  cleanDataCorpus <- tm_map(cleanDataCorpus, tolower)
+  exceptions <- grep(pattern = "n't", x = stopwords(), value = TRUE)
+  my_stopwords <- setdiff(stopwords("en"), exceptions)
+  cleanDataCorpus <- tm_map(cleanDataCorpus, removeWords, my_stopwords)
+  
+  # Output into plain text document form
+  cleanDataCorpus <- tm_map(cleanDataCorpus, stemDocument)
+  cleanDataCorpus <- tm_map(cleanDataCorpus, PlainTextDocument)
+  on.exit(options(warn = oldw))
+  
+  # Continuous weighing
+  if (weight == "tfidf") {
+      dtm = DocumentTermMatrix(cleanDataCorpus, 
+                               control=list(weighting = function(x) weightTfIdf(x, normalize = FALSE)))  
+  } else {
+      # Binary weighing
+      dtm = DocumentTermMatrix(cleanDataCorpus, control=list(weighting = function(x) weightBin(x)))
+  }
+  
+  # Output a bag-of-words matrix
+  dtm.m = as.matrix(dtm)
+  word.mat = data.frame(cbind(dat$y, dtm.m))
+  
+  return(word.mat)
+}
+
+################################################################
+# Generate k topic vectors for a given data set
+topics = function(word.mat, k, method, seed) {
+  
+  # Initial setup of paramters
+  set.seed(seed)
+  words = colnames(word.mat)[-1]
+  inits = "svd"
+  if (method == "semi") {
+    inits = "kmeans"
+  }
+  
+  # Factorize the bag-of-words matrix
+  res = nmf.main(t(word.mat[,-1]), 1, k, method, inits, 30, 1e-10, sparse_svd = T)
+  F.mat = res$F; G.mat = res$G
+  rownames(F.mat) = words; 
+  colnames(F.mat) = colnames(G.mat) = paste0("T", 1:k)
+  
+  return(list(F = F.mat, G = G.mat))
+}
+
+################################################################
+### Print top words under topic vectors (Table 8 & 9) ###
+
+# function to calculate norm of a vector
+norm_vec <- function(x) sqrt(sum(x^2))
+
+# Organize the topics according to the corresponding norm in G
+# Analgous to SVD, where the eigenvectors (F) are sorted in descending order
+# according to the eigenvalues (norm of G)
+top.words = function(mat.list, num_topics, num_words) {
+  
+  F.m = mat.list$F; G.m = mat.list$G
+  
+  # Sort the topics according to the corresponding norm in G 
+  # Topics with larger norms are considered to be "leading" topics
+  col.norm = apply(G.m, 2, norm_vec)
+  temp = rbind(F.m, col.norm)
+  sort.F = temp[,order(temp[nrow(temp),], decreasing = T)]
+  mat = sort.F[-nrow(sort.F),]
+  col.norm = sort(col.norm, decreasing = T)
+  
+  res = list()
+  for(i in 1:num_topics) {
+    positive = tail(sort(mat[,i], decreasing = FALSE), num_words);
+    positive = positive[order(-positive)]
+    negative = head(sort(mat[,i]), num_words)
+    vec.1 = cbind(names(positive), positive, names(negative), negative)
+    rownames(vec.1) = NULL
+    vec.1[,c(2,4)] = round(as.numeric(vec.1[,c(2,4)]), 4)
+    res[[i]] = vec.1
+  }
+  return(list(res = res, norm = col.norm))
+}
+
+# Wrapper function to generate word-topic matrix 
+wrapTopic = function(word.mat, k, method, seed, nTopics, nWords) {
+  
+  topicMat = topics(word.mat, k, method, seed)
+  topWords = top.words(topicMat, nTopics, nWords)
+  
+  return(list(topicMat = topicMat, topWords = topWords))
+}
+
+################################################################
+### Plot the violin plots for the first 5 topics (Figure 7) ###
+
+plot.vio = function(resp, inputNMF, top, name) {
+  
+  # sort according to norm of G
+  col.norm = apply(inputNMF$topicMat$G, 2, norm_vec)
+  names(col.norm) = 1:10
+  col.sort = sort(col.norm, decreasing = T)
+  G.sort = G.m[,as.numeric(names(col.sort))]
+  
+  dset = data.frame(cbind(resp, G.sort[,1:top]))
+  colnames(dset) = c("Disposition", paste0("Topic_", rep(1:top)))
+  
+  # Organize the data into suitable form
+  n = nrow(dset)
+  resp = rep(resp, 5)
+  loading = topic = c()
+  for (i in 1:5) {
+    loading = c(loading, dset[,i+1])
+    topic = c(topic, rep(paste0("Topic_", i), n))
+  }
+  
+  # Normalized the data
+  normalized = function(x) {(x-min(x))/(max(x)-min(x))}
+  loading = normalized(loading)
+  
+  # Bind the final results together
+  final = data.frame(cbind(resp, loading, topic))
+  final$loading = as.numeric(as.character(final$loading))
+  
+
+  e <- ggplot(final, aes(x = topic, y = loading))
+ 
+  title = paste0("Distribution of the Normalized Word Loadings
+                 wrt/ to the Disposition for Topic 1-5 || ", name)
+  
+   e + geom_violin(
+    aes(color = resp), trim = T,
+    position = position_dodge(0.4) 
+  ) +
+    geom_boxplot(
+      aes(color = resp), width = 0.25,
+      position = position_dodge(0.4)
+    ) + 
+     ggtitle(title) +
+     xlab("Topics") + ylab("Normalized Loading") + labs(color='Disposition')  +
+     # you should specify the color also
+     scale_color_manual(labels = c("Discharged", "Admittance"), values = c("blue", "red"))
+   
+}
+
+###########################################################
+### Organize topic representation of documents (Table 10) ###
+
+# Use ALC as example
+topicForDoc = function(topmat, dataset) {
+ 
+  # Read data (Change directory to your local)
+  dset = read_csv(paste0("./", dataset, ".csv"))
+  
+  triage = dset$TriageNote
+  resp = dset$DISPOSITION
+  
+  # sort according to norm of G
+  G.m = topmat$topicMat$G
+  col.norm = apply(G.m, 2, norm_vec)
+  names(col.norm) = 1:10
+  col.sort = sort(col.norm, decreasing = T)
+  G.sort = G.m[,as.numeric(names(col.sort))]
+  
+  # Combine notes, response and topic vectors
+  notetopic = cbind(as.character(triage), resp, data.frame(G.sort))
+  
+  # Organize the word mats
+  newtopic = c()
+  bottopic = c()
+  wordtop = topmat$topWords$res
+  for (i in 1:10) {
+    newtopic = cbind(newtopic, wordtop[[i]][,1:2])
+    bottopic = cbind(bottopic, wordtop[[i]][,3:4])
+  }
+  
+  for (i in 1:10) {
+    colnames(newtopic)[2*i-1] = i
+    colnames(bottopic)[2*i-1] = i
+  }
+  return(list(notes = notetopic, posi = newtopic, negi = bottopic))
+}

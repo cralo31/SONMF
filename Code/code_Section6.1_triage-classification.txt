@@ -1,0 +1,458 @@
+################################################################
+####### Script for Medical Datasets ############
+################################################################
+
+# Due to privacy reasons, the authors were only allow to release one approved, de-identified
+# dataset, i.e. "Altered Level of Consicousness" to the public for reproducibility and research 
+# purpose. However, the other datasets mentioned in the manuscript uses the same analysis pipeline 
+# as the "Altered Level of Consciousness" dataset.
+
+# For all the code chunks below, "Altered Level of Consicousness" is shorten to "alc" for simplicity.
+
+###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
+### Triage Notes Classification ###
+###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
+
+# Note that these operations are extremely computational intensive due to high-dimensional dataset,
+# multiple trials, and 5-fold cross-validation within each trial. Recommend to test using a
+# smaller number of trials or consider HPC solutions.
+
+######################################################################################
+### Table 5 ###
+
+# Note that the random forest mdoel takes significantly more time to run than the other three
+
+# Continous bag-of-words
+alc_bow_cont = parallel.ana(20, 4, "Altered_Level_of_Consicousness", NA, NA, NA, FALSE, "tfidf") 
+# Binary bag-of-words
+alc_bow_cont = parallel.ana(20, 4, "Altered_Level_of_Consicousness", NA, NA, NA, FALSE, "bin")  
+
+######################################################################################
+### Table 6 ###
+
+### Outputs the factorization cost + sparsity of F and G in Table ###
+
+# SONMF #
+alc.fact.sonmf.10 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 10, "sonmf", 'tfidf')
+alc.fact.sonmf.25 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 25, "sonmf", 'tfidf')
+alc.fact.sonmf.50 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 50, "sonmf", 'tfidf')
+alc.fact.sonmf.100 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 100, "sonmf",  'tfidf')
+alc.fact.sonmf.150 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 150, "sonmf",  'tfidf')
+
+# ONMF #
+alc.fact.onmf.10 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 10, "onmf",  'tfidf')
+alc.fact.onmf.25 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 25, "onmf",  'tfidf')
+alc.fact.onmf.50 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 50, "onmf",  'tfidf')
+alc.fact.onmf.100 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 100, "onmf",  'tfidf')
+alc.fact.onmf.150 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 150, "onmf",  'tfidf')
+
+# NMF #
+alc.fact.nmf.10 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 10, "nmf",  'tfidf')
+alc.fact.nmf.25 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 25, "nmf",  'tfidf')
+alc.fact.nmf.50 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 50, "nmf",  'tfidf')
+alc.fact.nmf.100 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 100, "nmf",  'tfidf')
+alc.fact.nmf.150 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 150, "nmf",  'tfidf')
+
+# Semi-NMF #
+alc.fact.semi.10 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 10, "semi",  'tfidf')
+alc.fact.semi.25 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 25, "semi",  'tfidf')
+alc.fact.semi.50 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 50, "semi",  'tfidf')
+alc.fact.semi.100 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 100, "semi",  'tfidf')
+alc.fact.semi.150 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 150, "semi",  'tfidf')
+
+# Binary SONMF #
+alc.fact.sobin.10 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 10, "so_bin",  'bin')
+alc.fact.sobin.25 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 25, "so_bin",  'bin')
+alc.fact.sobin.50 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 50, "so_bin",  'bin')
+alc.fact.sobin.100 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 100, "so_bin",  'bin')
+alc.fact.sobin.150 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 150, "so_bin",  'bin')
+
+# Binary logNMF #
+alc.fact.lognmf.10 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 10, "log_nmf",  'bin')
+alc.fact.lognmf.25 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 25, "log_nmf",  'bin')
+alc.fact.lognmf.50 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 50, "log_nmf",  'bin')
+alc.fact.lognmf.100 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 100, "log_nmf",  'bin')
+alc.fact.lognmf.150 = parallel.decomp(20, 4, "Altered_Level_of_Consicousness", 150, "log_nmf",  'bin')
+
+### Outputs the classification results for Table 6 & 7 in the manuscript ###
+
+# Each of the following runs generates the classification accuracy of the given rank K 
+# for all considered tuning parameters across the 4 different models. The setting that
+# yields the highest classificiation for each supervised model (Linear, KNN, rForest, SvM)
+# is presented in the table 6 for the given rank.
+
+# The accuracy, precision, recall and F1 are reported for each of the following classification runs.
+
+# Both Table 6 & 7 uses 
+
+# SONMF #
+alc.clas.sonmf.10 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 10, "sonmf", 100, T, 'tfidf')
+alc.clas.sonmf.25 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 25, "sonmf", 100, T, 'tfidf')
+alc.clas.sonmf.50 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 50, "sonmf", 100, T, 'tfidf')
+alc.clas.sonmf.100 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 100, "sonmf", 100, T, 'tfidf')
+alc.clas.sonmf.150 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 150, "sonmf", 100, T, 'tfidf')
+
+# ONMF #
+alc.clas.onmf.10 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 10, "onmf", 100, T, 'tfidf')
+alc.clas.onmf.25 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 25, "onmf", 100, T, 'tfidf')
+alc.clas.onmf.50 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 50, "onmf", 100, T, 'tfidf')
+alc.clas.onmf.100 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 100, "onmf", 100, T, 'tfidf')
+alc.clas.onmf.150 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 150, "onmf", 100, T, 'tfidf')
+
+# NMF #
+alc.clas.nmf.10 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 10, "nmf", 100, T, 'tfidf')
+alc.clas.nmf.25 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 25, "nmf", 100, T, 'tfidf')
+alc.clas.nmf.50 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 50, "nmf", 100, T, 'tfidf')
+alc.clas.nmf.100 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 100, "nmf", 100, T, 'tfidf')
+alc.clas.nmf.150 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 150, "nmf", 100, T, 'tfidf')
+
+# Semi-NMF #
+alc.clas.semi.10 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 10, "semi", 100, T, 'tfidf')
+alc.clas.semi.25 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 25, "semi", 100, T, 'tfidf')
+alc.clas.semi.50 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 50, "semi", 100, T, 'tfidf')
+alc.clas.semi.100 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 100, "semi", 100, T, 'tfidf')
+alc.clas.semi.150 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 150, "semi", 100, T, 'tfidf')
+
+# Binary SONMF #
+alc.clas.sobin.10 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 10, "so_bin", 100, T, 'bin')
+alc.clas.sobin.25 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 25, "so_bin", 100, T, 'bin')
+alc.clas.sobin.50 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 50, "so_bin", 100, T, 'bin')
+alc.clas.sobin.100 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 100, "so_bin", 100, T, 'bin')
+alc.clas.sobin.150 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 150, "so_bin", 100, T, 'bin')
+
+# Binary logNMF #
+alc.clas.lognmf.10 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 10, "log_nmf", 100, T, 'bin')
+alc.clas.lognmf.25 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 25, "log_nmf", 100, T, 'bin')
+alc.clas.lognmf.50 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 50, "log_nmf", 100, T, 'bin')
+alc.clas.lognmf.100 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 100, "log_nmf", 100, T, 'bin')
+alc.clas.lognmf.150 = parallel.ana(20, 4, "Altered_Level_of_Consicousness", 150, "log_nmf", 100, T, 'bin')
+
+##########################################################################################
+### Table 7 ###
+
+# Table 7 is composed of the best classification result for a given NMF method across different ranks 
+# and supervised learning models. These results are obtained directly from the results above that 
+# generated Table 6.
+
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+
+#######################################################################################
+### Classification ###
+##############################################################################
+
+#' Parallel computation of dataset of specified number of clusters and method type
+#' @export
+#' n: Number of runs 
+#' cores: Number of cores to utilize for parallel computation
+#' dataset: The triage dataset (complain) to run
+#' k: Number of topics
+#' method: Which NMF method to implement
+#' iter: Number of iterations to run
+#' nmf: Whether to implement the transformation of basis or just the bag-of-words
+#' weight: Choose between tfidf or binary weighing
+parallel.ana = function(n, cores, dataset, k, method, iter, nmf = TRUE, weight) {
+
+  # Set reproducibility seed
+  set.seed(1031)
+  
+  if (cores > detectCores()) {
+    cores = detectCores()
+    warning("Input number of clusters is greater than the number 
+            of clusters on the current machine.")
+  } else if (cores < 1) {
+    cores = 1
+    warning("Input number of clusters is less than 1. Uses 1 core instead.")
+  }
+  
+  # Read data (Change directory to your local)
+  dset = read_csv(paste0("./dataset/", dataset, ".csv"))
+  
+  # Clean data
+  word.mat = clean.dat(dset, weight)
+  
+  # Run analysis in parallel
+  cl = makeCluster(cores)
+  registerDoParallel(cl)
+  ptm = proc.time()
+  run = foreach (i = 1:n, .packages = c("foreach", "irlba", "glmnet", "dplyr", "doParallel",
+                                        "corpcor", "Matrix", "raster", "Rcpp", "RcppArmadillo",
+                                        "pracma", "caret", "doParallel", "MatrixFact", "doRNG", "class",
+                                        "e1071", "randomForest"),
+                 .export= c("analysis", "calcRes")) %dorng% {
+                    analysis(word.mat, k, method, iter, nmfmode)
+                     }
+  
+  time = proc.time() - ptm
+  stopCluster(cl)
+  
+  # Add up the results
+  meanres = Reduce("+", run) / n
+  
+  return(meanres)
+}
+
+##############################################################################
+# Clean data and generate document-term matrix with tfidf or binary weighing #
+
+clean.dat = function(dset, weight) {
+  
+  # Retain only notes and response variable
+  dat = dset[,c(12,1)]
+  colnames(dat) = c("notes", "y")
+  dat$y = ifelse(dat$y == "D", 0, 1)
+  
+  # Some manual words cleaning 
+  dat$notes = gsub("c/o","co", dat$notes, ignore.case=TRUE)
+  dat$notes = gsub("NA|Unknown","", dat$notes, ignore.case = TRUE )
+  dat$notes = gsub("abd|abdo|abdomen|abdomin|abdominal","abdominal", dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("urination|urinary|urinari|urine|urin", "urine", dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("wor|wors|worse|worsen","worsen", dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("bleed|blood","blood",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("vomiting|vomiting|vomitting","vomit",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("triag|dat","dat",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("unabl|unable","unable",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("nausea|nauseat|nauseated|nauseating|nauseate","nauseat",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("non|no","no", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub("lt","left",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("rt","right",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub( "\\<n v d\\> | \\<nv d\\> |  \\<n vd\\>", "nvd", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub( "\\<n v\\>", "nv ", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub( "\\<v d\\>", "vd ", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub("D/T", "dt", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub( "[^[:alnum:][:space:]']", " ", dat$notes)
+  
+  # Standard text mining data cleaning techniques via tm package
+  # Remove numbers, punctuation, and most stop words (ecluding negation) 
+  # Lower case all words
+  oldw <- getOption("warn")
+  corpus = VCorpus(VectorSource(dat$notes))
+  cleanDataCorpus <- tm_map(corpus, removePunctuation) 
+  cleanDataCorpus <- tm_map(cleanDataCorpus, removeNumbers)
+  cleanDataCorpus <- tm_map(cleanDataCorpus, tolower)
+  exceptions <- grep(pattern = "n't", x = stopwords(), value = TRUE)
+  my_stopwords <- setdiff(stopwords("en"), exceptions)
+  cleanDataCorpus <- tm_map(cleanDataCorpus, removeWords, my_stopwords)
+  
+  # Output into plain text document form
+  cleanDataCorpus <- tm_map(cleanDataCorpus, stemDocument)
+  cleanDataCorpus <- tm_map(cleanDataCorpus, PlainTextDocument)
+  on.exit(options(warn = oldw))
+  
+  # Continuous weighing
+  if (weight == "tfidf") {
+      dtm = DocumentTermMatrix(cleanDataCorpus, 
+                               control=list(weighting = function(x) weightTfIdf(x, normalize = FALSE)))  
+  } else {
+      # Binary weighing
+      dtm = DocumentTermMatrix(cleanDataCorpus, control=list(weighting = function(x) weightBin(x)))
+  }
+  
+  # Output a bag-of-words matrix
+  dtm.m = as.matrix(dtm)
+  word.mat = data.frame(cbind(dat$y, dtm.m))
+  
+  return(word.mat)
+}
+
+### Run analysis after using NMF methods and performing a transformation of basis
+analysis = function(word.mat, ranks, method, iteration, nmfmode) {
+  
+  # Split data randomly with caret package
+  flds <- createFolds(word.mat$V1, k = 5, list = TRUE, returnTrain = FALSE)
+  
+  result = list()
+  residual = c()
+  
+  # Set parameters
+  mode = 1
+  inits = "svd"
+  if (method == "so_bin" | method == "log_nmf") {
+    mode = 2
+    if (method == "log_nmf") {
+      inits = "random"
+    }
+  }
+  
+  for (fold in 1:5) {
+    test = word.mat[flds[[fold]],]
+    train = word.mat[-flds[[fold]],]
+    
+    if (nmfmode) {
+      # Perform NMF on training set
+      nmf.train = nmf.main(t(train[,-1]), mode, ranks, method, init = inits, iter = iteration, tol = 1e-99,
+                           step_bin = 0.05, steplog = 0.0005)
+      
+      # Project training set and testing set onto the reduced column space
+      new.train = data.frame(cbind(train$V1, as.matrix(train[,-1]) %*% nmf.train$F))
+      new.test = data.frame(cbind(test$V1, as.matrix(test[,-1]) %*% nmf.train$F))  
+    } else {
+      new.train = train; new.test = test
+    }
+    new.train[,1] = factor(new.train[,1])
+    new.test[,1] = factor(new.test[,1])
+    
+    #######################################################
+    ### Grid Search Supervised Learning ###
+    
+    # SVM (Radial Kernel) #
+    cost = 10^(-3:1)
+    gamma = 10^(-2:0)
+    svmRes = c(); count = 1
+    for (j in 1:length(cost)) {
+      for (k in 1:length(gamma)) {
+        svmfit = svm(as.matrix(new.train[,-1]), new.train[,1], kernel = "radial", 
+                     cost = cost[j], gamma = gamma[k])
+        svm.pred = predict(svmfit, new.test[,-1])
+        svmRes = rbind(svmRes, calcRes(svm.pred, new.test[,1]))
+        rownames(svmRes)[count] = paste0("cost ", cost[j], " | gamma", gamma[k])  
+        count = count + 1
+        print(paste0("cost ", cost[j], " | gamma", gamma[k]))
+      }
+    }
+    
+    # SVM (Linear Kernel) #
+    slkRes = c()
+    for (j in 1:length(cost)) {
+      slkfit = svm(as.matrix(new.train[,-1]), new.train[,1], kernel = "linear", 
+                   cost = cost[j])
+      slk.pred = predict(slkfit, new.test[,-1])
+      slkRes = rbind(slkRes, calcRes(slk.pred, new.test[,1]))
+      rownames(slkRes)[j] = paste0("lk cost ", cost[j])  
+    }
+    svmRes = rbind(svmRes, slkRes) # Bind the 2 SVM Results together
+    
+    # Run Linear Models #
+    alphas = c(0, 0.5, 1);
+    linearRes = c()
+    for (i in 1:length(alphas)) {
+      linefit = cv.glmnet(as.matrix(new.train[,-1]), 
+                          new.train[,1], family = "binomial", alpha = alphas[i])
+      line.pred = as.numeric(predict(linefit, as.matrix(new.test[,-1]), type = "class"))
+      linearRes = rbind(linearRes, calcRes(line.pred, test$V1))
+      rownames(linearRes)[i] = paste0("linear ", alphas[i])
+      print(paste0("linear ", alphas[i]))
+    }
+    
+    # KNN 
+    knns = c(10, 25, 50, 100)
+    knnRes = c(); 
+    for (j in 1:length(knns)) {
+      knn.fit = knn(new.train[,-1], new.test[,-1], new.train[,1], k = knns[j])
+      knnRes = rbind(knnRes, calcRes(knn.fit, test$V1))
+      rownames(knnRes)[j] = paste0("knn ", knns[j])
+      print(paste0("knn ", knns[j]))
+    }
+    
+    # Random Forest
+    nodes = c(10, 25, 50, 100)
+    rfRes = c(); 
+    for (node in 1:length(nodes)) {
+      rf.fit = randomForest(new.train[,-1], new.train[,1], nodesize = nodes[node], ntree = 500)
+      rf.pred = predict(rf.fit, new.test[,-1], type = "response")
+      rfRes = rbind(rfRes, calcRes(rf.pred, new.test[,1]))
+      rownames(rfRes)[node] = paste0("node ", nodes[node])
+      print(paste0("node ", nodes[node]))
+    }  
+    
+    result[[fold]] = rbind(linearRes, knnRes, rfRes, svmRes)
+    residual = rbind(residual, c(nmf.train$final_res, nmf.train$final_orth, mean(nmf.train$F == 0), 
+                                 mean(nmf.train$G == 0)))
+  } 
+  
+  # Add up the results
+  sum = result[[1]]
+  for (f in 2:5) {
+    sum = sum + result[[f]]
+  }
+  sum = sum / 5
+  
+  # Add rank info onto the results
+  K = rep(ranks, 4)
+  final = rbind(K, sum)
+  
+  return(final)
+}
+# Function to calculate various results 
+calcRes = function(predY, trueY) {
+  
+  confTab = table(predY, trueY) %>% confusionMatrix()
+  accu = confTab$overall[1]
+  prec = confTab$byClass[5]
+  recall = confTab$byClass[6]  
+  f1 = confTab$byClass[7]
+  return(c(accu, prec, recall, f1))
+}
+
+############################################################################
+### Factorization on Bag-of-words Matrix ###
+
+# Factorize the bag-of-words matrix over multiple trials with parallel computing
+parallel.decomp = function(n, cores, dataset, k, method, weight) {
+  
+  # Set reproducibility seed
+  set.seed(1031)
+  
+  if (cores > detectCores()) {
+    cores = detectCores()
+    warning("Input number of clusters is greater than the number of clusters on the current machine.")
+  } else if (cores < 1) {
+    cores = 1
+    warning("Input number of clusters is less than 1. Uses 1 core instead.")
+  }
+  
+  # Read data (Change directory to your local machine)
+  dset = read_csv(paste0("./dataset/", dataset, ".csv"))
+  
+  # Clean data
+  word.mat = clean.dat(dset, weight)
+  
+  cl = makeCluster(cores)
+  registerDoParallel(cl)
+  ptm = proc.time()
+  run = foreach (i = 1:n, .packages = c("foreach", "irlba", "glmnet", "dplyr", "doParallel",
+                                        "corpcor", "Matrix", "raster", "Rcpp", "RcppArmadillo",
+                                        "pracma", "caret", "doParallel", "MatrixFact", "doRNG", "class",
+                                        "e1071", "randomForest"),
+                 .export= c("wordFact")) %dorng% {
+                   wordFact(word.mat, k, method)
+                 }
+  
+  time = proc.time() - ptm
+  stopCluster(cl)
+  
+  # Add up the results
+  sum = run[[1]]
+  for (f in 2:n) {
+    sum = sum + run[[f]]
+  }
+  mean = sum / n
+  
+  return(mean)
+}
+
+# Function to perform the factorization on the entire dataset to calculate the 
+# Cost and Sparsity 
+wordFact = function(word.mat, ranks, method ) {
+  
+  # Set parameters
+  mode = 1
+  inits = "svd"
+  stepbin= 0.05; steplog = 0.0005
+  if (method == "so_bin" | method == "log_nmf") {
+    mode = 2
+    if (method == "log_nmf") {
+      inits = "random"
+    }
+  }
+
+  # Perform NMF on training set
+  nmf.train = nmf.main(t(word.mat[,-1]), mode, ranks, method, init = inits, iter = 100, tol =
+                         1e-5, step_bin=stepbin, step_log=steplog)
+  
+  # Return the factorized solution, residual and sparsity
+  res = c(nmf.train$final_result[1], mean(nmf.train$F == 0), mean(nmf.train$G == 0))
+  names(res) = c("Cost", "F Sparsity", "G Sparsity")
+  
+  return(res)
+}

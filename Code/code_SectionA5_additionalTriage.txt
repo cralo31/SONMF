@@ -1,0 +1,193 @@
+################################################################
+####### Additional Triage Data Analyses ############
+################################################################
+
+###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
+### Run Simulation and Generate Results ###
+###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
+
+# Read data (Change to your local directory)
+dataset = "Altered_Level_of_Consciousness"
+dset = read_csv(paste0("C:/Users/cronshells/Dropbox/Jack Li/1_SONMF/JASA_SONMF_3rd_Submission/", 
+                          dataset, ".csv"))
+# Clean data
+word.mat = clean.dat(dset, 'tfidf')
+
+############################################################################
+# Density Plot: Number of Topics Each Word Belongs to (Figure 11)
+
+alc_sonmf = wrapTopic(word.mat, 40, "sonmf", 1031, 10, 10) 
+alc_nmf = wrapTopic(word.mat, 40, "nmf", 1031, 10, 10)    
+
+clustMember(alc_sonmf$topicMat, "red", "(SONMF)")   # Figure 11 Top
+clustMember(alc_nmf$topicMat, "black", "(NMF)")   # Figure 11 Bottom
+
+############################################################################
+# Elbow plot (Figure 12)
+elb_sonmf = wrapTopic(word.mat, 30, "sonmf", 1031, 30, 30)
+elbplot(elb_sonmf)
+
+############################################################################
+# Classification Results for Remaining Dataset
+
+# Refer to the code in Section 6.1 for the classification analysis pipeline.
+# Note that the remaining six datasets are not available to the public due to privacy reasons.
+
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+
+############################################################################
+clean.dat = function(dset, weight) {
+  
+  # Retain only notes and response variable
+  dat = dset[,c(12,1)]
+  colnames(dat) = c("notes", "y")
+  dat$y = ifelse(dat$y == "D", 0, 1)
+  
+  # Some manual words cleaning 
+  dat$notes = gsub("c/o","co", dat$notes, ignore.case=TRUE)
+  dat$notes = gsub("NA|Unknown","", dat$notes, ignore.case = TRUE )
+  dat$notes = gsub("abd|abdo|abdomen|abdomin|abdominal","abdominal", dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("urination|urinary|urinari|urine|urin", "urine", dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("wor|wors|worse|worsen","worsen", dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("bleed|blood","blood",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("vomiting|vomiting|vomitting","vomit",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("triag|dat","dat",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("unabl|unable","unable",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("nausea|nauseat|nauseated|nauseating|nauseate","nauseat",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("non|no","no", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub("lt","left",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub("rt","right",dat$notes,ignore.case = TRUE)
+  dat$notes = gsub( "\\<n v d\\> | \\<nv d\\> |  \\<n vd\\>", "nvd", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub( "\\<n v\\>", "nv ", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub( "\\<v d\\>", "vd ", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub("D/T", "dt", dat$notes, ignore.case = TRUE)
+  dat$notes = gsub( "[^[:alnum:][:space:]']", " ", dat$notes)
+  
+  # Standard text mining data cleaning techniques via tm package
+  # Remove numbers, punctuation, and most stop words (ecluding negation) 
+  # Lower case all words
+  oldw <- getOption("warn")
+  corpus = VCorpus(VectorSource(dat$notes))
+  cleanDataCorpus <- tm_map(corpus, removePunctuation) 
+  cleanDataCorpus <- tm_map(cleanDataCorpus, removeNumbers)
+  cleanDataCorpus <- tm_map(cleanDataCorpus, tolower)
+  exceptions <- grep(pattern = "n't", x = stopwords(), value = TRUE)
+  my_stopwords <- setdiff(stopwords("en"), exceptions)
+  cleanDataCorpus <- tm_map(cleanDataCorpus, removeWords, my_stopwords)
+  
+  # Output into plain text document form
+  cleanDataCorpus <- tm_map(cleanDataCorpus, stemDocument)
+  cleanDataCorpus <- tm_map(cleanDataCorpus, PlainTextDocument)
+  on.exit(options(warn = oldw))
+  
+  # Continuous weighing
+  if (weight == "tfidf") {
+      dtm = DocumentTermMatrix(cleanDataCorpus, 
+                               control=list(weighting = function(x) weightTfIdf(x, normalize = FALSE)))  
+  } else {
+      # Binary weighing
+      dtm = DocumentTermMatrix(cleanDataCorpus, control=list(weighting = function(x) weightBin(x)))
+  }
+  
+  # Output a bag-of-words matrix
+  dtm.m = as.matrix(dtm)
+  word.mat = data.frame(cbind(dat$y, dtm.m))
+  
+  return(word.mat)
+}
+
+############################################################################
+# Generate k topic vectors for a given data set
+topics = function(word.mat, k, method, seed) {
+  
+  # Initial setup of paramters
+  set.seed(seed)
+  words = colnames(word.mat)[-1]
+  inits = "svd"
+  if (method == "semi") {
+    inits = "kmeans"
+  }
+  
+  # Factorize the bag-of-words matrix
+  res = nmf.main(t(word.mat[,-1]), 1, k, method, inits, 30, 1e-10, sparse_svd = T)
+  F.mat = res$F; G.mat = res$G
+  rownames(F.mat) = words; 
+  colnames(F.mat) = colnames(G.mat) = paste0("T", 1:k)
+  
+  return(list(F = F.mat, G = G.mat))
+}
+
+# function to calculate norm of a vector
+norm_vec <- function(x) sqrt(sum(x^2))
+
+############################################################################
+# Output the top word-topic vectors
+
+# Organize the topics according to the corresponding norm in G
+# Analgous to SVD, where the eigenvectors (F) are sorted in descending order
+# according to the eigenvalues (norm of G). Since F is orthonormal, the eigenvalues
+# are all absorbed into the column norms of G.
+
+top.words = function(mat.list, num_topics, num_words) {
+  
+  F.m = mat.list$F; G.m = mat.list$G
+  
+  # Sort the topics according to the corresponding norm in G 
+  # Topics with larger norms are considered to be "leading" topics
+  col.norm = apply(G.m, 2, norm_vec)
+  temp = rbind(F.m, col.norm)
+  sort.F = temp[,order(temp[nrow(temp),], decreasing = T)]
+  mat = sort.F[-nrow(sort.F),]
+  col.norm = sort(col.norm, decreasing = T)
+  
+  res = list()
+  for(i in 1:num_topics) {
+    positive = tail(sort(mat[,i], decreasing = FALSE), num_words);
+    positive = positive[order(-positive)]
+    negative = head(sort(mat[,i]), num_words)
+    vec.1 = cbind(names(positive), positive, names(negative), negative)
+    rownames(vec.1) = NULL
+    vec.1[,c(2,4)] = round(as.numeric(vec.1[,c(2,4)]), 4)
+    res[[i]] = vec.1
+  }
+  return(list(res = res, norm = col.norm))
+}
+
+# Wrapper function to generate word-topic matrix 
+wrapTopic = function(word.mat, k, method, seed, nTopics, nWords) {
+  
+  topicMat = topics(word.mat, k, method, seed)
+  topWords = top.words(topicMat, nTopics, nWords)
+  
+  return(list(topicMat = topicMat, topWords = topWords))
+}
+
+
+##################################################################
+# Density plot for Cluster Membership of Words (Figure 11) ###
+
+clustMember = function(soMat, color, stri) {
+  
+  # Calculate the number of clusters each word belongs to
+  nmf.count = apply(soMat$F, 1, function(x) sum(x > 0))
+  nmf.count = sort(nmf.count, decreasing = T)
+  nmf.count = data.frame(cbind(nmf.count, 1:length(nmf.count)))
+  
+  densityplot(nmf.count$nmf.count, col = color, 
+              main = paste0("Density Plot: Number of Clusters Each Word Belongs to ", stri), 
+              xlab = "Number of Topic Memberships", ylab = "Density")
+}
+
+
+##################################################################
+### Elbow Plot (Figure 12) ### 
+
+set.seed(1031)
+
+# Output the elbow plot
+elbplot = function(mfac) {
+  plot(mfac$topWords$norm, type = "l", col = "blue", lwd = 2, 
+     main = "Norm of the Word-Topic Vectors Generated by SONMF on ALC", ylab = "Norm", xlab = "Topics")
+  points(mfac$topWords$norm, pch = 15, col = "blue")
+}

@@ -1,0 +1,160 @@
+################################################################
+####### Initialization Study (Section A.2) ############
+################################################################
+
+# Need to use the raw SONMF function instead of nmf_main() to do this analysis
+library(Rcpp)
+library(RcppArmadillo)
+library(pracma)
+
+# Load SONMF from source
+# This can be found in "src" folder of the MatrixFact package
+sourceCpp('./MatrixFact/src/SO_NMF.cpp')
+
+###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
+### Run Simulation and Generate Results ###
+###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
+
+### Output Figure 8 ###
+
+# Scenario 1
+t.1 = initStudy(500, 30, 1, 250, 1)
+plot.fun2("init_1", t.1$sum, 1, 0, 2, t.1$true[1])
+
+# Scenario 2
+t.2 = initStudy(500, 30, 2, 250, 1)
+plot.fun2("init_2", t.2$sum, 2, 0.06, 0.27, t.2$true[1])
+
+# Scenario 3
+t.3 = initStudy(500, 30, 2, 250, 1)
+plot.fun2("init_3", t.3$sum, 3, 0.075, 0.13, t.3$true[1])
+
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+
+### Create wrapper function to run a scenario
+initStudy = function(n, k, mode, iter, seeding) {
+  
+  set.seed(seeding)
+  seeds = sample(c(0:1e5), 100)
+  
+  rtest = list()
+  for (i in 1:length(seeds)) {
+    rtest[[i]] = init.test(n, k, mode, iter, seeds[i])
+  }
+  return(ave.fun(rtest))
+}
+
+
+### Create matrix for simulation
+create.mat = function(n, k, mode, seed) {
+  
+  set.seed(seed)
+  
+  # Create the true G matrix
+  g = matrix(runif(n * k, 0, 2), n, k)
+  
+  # Settings for F (1 = non-negative, 2 = mixed, 3 = orthonormal)
+  if (mode == 1) {
+    f = matrix(runif(n * k, 0, 1), n, k)
+  } else if (mode == 2) {
+    f = diag(runif(k, 0, 2))
+    for (i in 1:(n / k - 1)) {
+      dum = diag(runif(k, 0, 2))
+      f = rbind(f, dum)
+    }
+    if (k == 30) {
+      dum.2 = diag(runif(k, 0, 2)); dum.2 = dum.2[1:(n - nrow(f)),]
+      f = rbind(f, dum.2)
+    }
+  } else {
+    f = randortho(n)
+    f = f[,1:k] 
+  }
+  
+  # Construct X
+  X = f %*% t(g) + matrix(rnorm(n * n, 0, 0.3), n, n)
+  
+  if (mode == 1 || mode == 2) {
+    X[X < 0] = 0
+  }
+  
+  return(list(X = X, F = f, G = g))
+}
+
+#################################################################
+
+# Run simulation for SONMF with three different initialization strategies
+init.test = function(n, k, mode, iter, seed) {
+  
+  # Create true X matrix
+  X.mat = create.mat(n, k, mode, seed)
+  X = X.mat$X
+  true.err = mean((X.mat$X - X.mat$F %*% t(X.mat$G))^2)
+  set.seed(seed)
+  
+  # K-means Initiation (Initializaition 1)
+  fit = kmeans(X, k)
+  G.kmeans = matrix(0, ncol(X), k)
+  for(i in 1:length(fit$cluster)) {
+   G.kmeans[i, fit$cluster[i]] = 1
+  }
+  G.kmeans = G.kmeans + 0.2
+  
+  # Using orthornormal basis from (XG(G^TG)^-1)
+  F.dum = X %*% G.kmeans %*% solve(t(G.kmeans) %*% G.kmeans)
+  qr.F = qr(F.dum)
+  F.init.1 = qr.Q(qr.F) # Orthogonal Basis 
+  G.init.1 = t(X) %*% F.init.1; G.init.1[G.init.1 < 0] = 0
+  
+   # SVD Initialization
+  X.svd = svd(X, nu = k, nv = k)
+  svd.err = mean((X.mat$X - X.svd$u %*% diag(X.svd$d[1:k]) %*% t(X.svd$v))^2)
+  F.init.2 = X.svd$u; F.init.2 = F.init.2 * (-1)
+  G.init.2 = t(X) %*% F.init.2; G.init.2[G.init.2 < 0] = 0
+
+  # Random Initialization
+
+  rand = randortho(n)
+  F.init.3 = rand[,1:k]
+  G.init.3 = t(X) %*% F.init.3; G.init.3[G.init.3 < 0] = 0
+
+  test_1 = SO_NMF(X, k, F.init.1, G.init.1, 1e-10, iter, 2, 2)
+  test_2 = SO_NMF(X, k, F.init.2, G.init.2, 1e-10, iter, 2, 2)
+  test_3 = SO_NMF(X, k, F.init.3, G.init.3, 1e-10, iter, 2, 2)
+  
+  info = cbind(test_1$info[,2], test_2$info[,2], test_3$info[,2], 
+               test_1$info[,3], test_2$info[,3], test_3$info[,3])
+  colnames(info) = c("Semi-basis", "SVD", "Random",
+                     "Semi-basis (norm)", "SVD (norm)", "Random (norm)")
+  return(list(info = info, err = c(true.err, svd.err)))
+}
+
+#######################################################################
+# Function to calculate the average results of the simulation
+ave.fun = function(list) {
+  sum = list[[1]]$info
+  true = list[[1]]$err
+  for (i in 2:length(list)) {
+    sum = sum + list[[i]]$info
+    true = true + list[[i]]$err
+  }
+  sum = sum / length(list) 
+  true = true / length(list)
+  return(list(sum = sum, true = true))
+}
+
+#######################################################################
+### Function to plot the convergence curves at different step sizes
+
+plot.fun2 = function(file, info, k, min, max, true.err) {
+  plot(info[,1], lty = 2, type = "l", col = "black",
+       main = paste0("Mean Residuals (Scenario ", k, ")"), xlab = "Iterations", 
+       ylab = "Mean Residuals", ylim = c(min, max), lwd = 2)
+  lines(info[,2], lty = 3, type = "l", col = "red", lwd = 2)
+  lines(info[,3], lty = 4, type = "l", col = "blue", lwd = 2)
+  abline(h = true.err, col = "purple")
+  legend("topright", legend = c("K-means", "SVD", "Random", 
+                                "True Error"), col = c("Black", "Red", "Blue", "Purple"), 
+         lty = c(2,3,4,1))
+}

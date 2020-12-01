@@ -1,0 +1,199 @@
+################################################################
+####### Rank-deficient Simulation ############
+################################################################
+
+###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
+### Run Simulation and Generate Results ###
+###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
+
+ovals = c(30, 60, 120)
+
+over.3 = parallel.over(n, ncores, 3, size, ovals, iter, 1e-99)
+ofit.3 = mean.fun(over.3, 1)
+
+# Output Figure 9
+plot.fun(ofit.3 1, 10, "3_10", 1:500, c(0.079, 0.091))		# Left
+plot.fun(ofit.3, 2, 30, "3_30", 1:500, c(0.04, 0.31))           # Middle
+plot.fun(ofit.3, 3, 50, "3_50", 1:500, c(0, 4.2))               # Right
+
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+
+# Slight modification to the code in Section 5.1 to consider Scenario 3
+# where the true rank is much less than the factorized rank, which results
+# in overfitting
+create.mat = function(n, k) {
+  
+  # Create the true G matrix
+  g = matrix(runif(n * k, 0, 2), n, k)
+  
+  # Create the F matrix 
+  f = randortho(n)
+  f = f[,1:k] %*% diag(runif(k))
+  
+  # Construct X using true F and G with an additional error matrix 
+  X = f %*% t(g) + matrix(rnorm(n * n, 0, 0.3), n, n)
+  
+  return(list(X = X, F = f, G = g))
+}
+
+
+## Function to calculate the error between the 
+#  projection matrix of the true F and G and the factorized F and G 
+error.fun = function(F.1, G.1, F.proj, G.proj) {
+  F.p = F.1 %*% pseudoinverse(t(F.1) %*% F.1) %*% t(F.1)
+  F.err = sqrt(sum((F.p - F.proj)^2))
+  
+  G.p = G.1 %*% pseudoinverse(t(G.1) %*% G.1) %*% t(G.1)
+  G.err = sqrt(sum((G.p - G.proj)^2))
+  res = c(F.err, G.err)
+  
+  return(res)
+}
+
+## Run simulation using all four methods (SONMF, Semi-NMF, ONMF, NMF) on the specified mode
+
+#' n: The number of rows of F, G, and consequently X
+#' ranks: The rank of the target factorization
+#' iter: Number of iterations to run
+#' tol: Stop the algorithm if the change of the 
+#' loss funtion between two iterations is less than this value
+
+test.fun = function(n, ranks, iter, tol) {
+  
+  result_full = c()
+  error_list = list()
+  count = 1
+  
+  for (k in ranks) {
+    
+    # Create true X with fixed rank 15 as in the simulation
+    X.mat = create.mat(n, 15); X = X.mat$X
+    
+    # Calculate the true error
+    F.proj = X.mat$F %*% solve(t(X.mat$F) %*% X.mat$F) %*% t(X.mat$F)
+    G.proj = X.mat$G %*% solve(t(X.mat$G) %*% X.mat$G) %*% t(X.mat$G)
+    true.err = mean((X.mat$X - X.mat$F %*% t(X.mat$G))^2)
+    
+    # Our Method #
+    ptm = proc.time();
+    X.so.nmf = nmf.main(X, 1, k, "sonmf", "svd", iter, tol, tau = 1, sparse_svd = F)
+    time = proc.time() - ptm
+    error.1 = error.fun(X.so.nmf$F, X.so.nmf$G, F.proj, G.proj)
+    res.sonmf = c(k, X.so.nmf$final_result, mean(X.so.nmf$F == 0), mean(X.so.nmf$G == 0), 
+                  error.1, time[3]) # Results
+    
+    # Semi NMF #
+    ptm = proc.time();
+    X.semi = nmf.main(X, 1, k, "semi", "kmeans", iter, tol)
+    time = proc.time() - ptm; 
+    error.2 = error.fun(X.semi$F, X.semi$G, F.proj, G.proj)
+    res.semi = c(k, X.semi$final_result[1], NA, X.semi$final_result[2], mean(X.semi$F == 0), 
+                 mean(X.semi$G == 0), error.2, time[3])
+    
+    result = rbind(res.sonmf, res.semi)
+    error = cbind(X.so.nmf$info[,2], X.semi$info[,2])
+    colnames(error) = c("SONMF_res","Semi_res")
+    
+    result_full = rbind(result_full, result)
+    error_list[[count]] = list(k = k, info = error, error = true.err)
+    count = count + 1
+    print(paste0("K = ", k))
+  }
+  
+  colnames(result_full) = c("k","res","orth","iter", "F sparse", 
+                            "G sparse","F.err", "G.err", "time")
+  
+  # Reorganize the results table
+  result_full = result_full[,c(1,2,3,7,8,5,6,9,4)]
+  error_list[[count]] = result_full
+  return(error_list)
+}
+
+## Function to calculate the mean statistics 
+mean.fun = function(list, mode) {
+  
+  if (mode == 1) {
+    res.10 = list[[1]][[1]]$info
+    res.30 = list[[1]][[2]]$info
+    res.50 = list[[1]][[3]]$info
+    t.err = list[[1]][[3]]$error  
+  }
+  tab = list[[1]][[4]]
+  for (i in 2:length(list)) {
+    if (mode == 1) {
+      res.10 = res.10 + list[[i]][[1]]$info
+      res.30 = res.30 + list[[i]][[2]]$info
+      res.50 = res.50 + list[[i]][[3]]$info
+      t.err = t.err + list[[i]][[3]]$error  
+    }
+    tab = tab + list[[i]][[4]]
+  }
+  if (mode == 1) {
+    res.10 = res.10 / length(list)
+    res.30 = res.30 / length(list)
+    res.50 = res.50 / length(list)
+    t.err = t.err/ length(list)  
+  }
+  tab = tab / length(list)
+  if (mode == 1) {
+    return(list(res.10 = res.10, res.30 = res.30, 
+                res.50 = res.50, error = t.err, info = tab))  
+  }
+  return(tab)
+}
+
+## Function to run the simulation trials in parallel
+parallel.over = function(n, cores, mode, size, values, iter, tol) {
+  
+  # Set seed for reproducibility
+  set.seed(1)
+
+  if (cores > detectCores()) {
+    cores = detectCores()
+    warning("Input number of clusters is greater than the number 
+            of clusters on the current machine.")
+  } else if (cores < 1) {
+    cores = 1
+    warning("Input number of clusters is less than 1. Uses 1 core instead.")
+  }
+  
+  cl = makeCluster(cores)
+  registerDoParallel(cl)
+  run = foreach (i = 1:n, .packages = c("foreach", "irlba", "doParallel", "MatrixFact",
+                                        "corpcor", "pracma", "doRNG"), .verbose = F,
+                 .export= c("create.mat", "test.fun", "error.fun")) %dorng% {
+                   test.fun(size, values, iter, tol)
+                 }
+  stopCluster(cl)
+  
+  # Averaged the results over multiple runs
+  return(run)
+}
+
+# Plot the log of the normalized residual for better visibility
+plot.fun = function(res, index, k, file, xrange, yrange) {
+  
+    # Use the Cairo package for better plot resolution 
+  # Outputs to local drive (Comment out if want to plot to console)
+  png(filename=paste0(file, ".jpg"), 
+      type="cairo",
+      units="in", 
+      width=5, 
+      height=4, 
+      pointsize=12, 
+      res=144)
+  
+  # Plot the figures
+  res.temp = res[[index]]
+  log.res = log(res.temp + 1)
+  plot(log.res[xrange,1], col = "red", type = "l", lty = 2, lwd = 2, main = paste0("K = ", k), 
+       xlab = "Iterations", ylab = "", ylim = yrange)
+  lines(log.res[xrange,2], col = "black", type = "l", lwd = 2, lty = 3)
+  lines(log.res[xrange,3], col = "blue", type = "l", lwd = 2, lty = 4)
+  lines(log.res[xrange,4], col = "green", type = "l", lwd = 2, lty = 5)
+  abline(h = log(res$summary[1] + 1), col = "purple")
+  legend("topright", legend = c("SONMF", "NMF", "ONMF", "Semi", "True Error"),
+         col = c("red", "green", "blue", "black", "purple"), lty = c(2, 5, 4, 3, 1))
+  dev.off()
+}
