@@ -1,5 +1,5 @@
 # SONMF
-Code and dataset for reproducing the results in "Topic Modeling on Triage Notes with Semi-orthogonal Non-negative Matrix Factorization".
+Code and dataset for reproducing the results in the "Topic Modeling on Triage Notes with Semi-orthogonal Non-negative Matrix Factorization" manuscript.
 
 # Dataset 
 The triage data, provided by the Alberta Medical Center, is collected during the triage phase of a hospital visit in the Emergency Department. The data set contains the demographic information, medical complaints, vital readings, and documented symptoms of the patients. These documented symptoms, or triage notes, are manually typed into the system by triage nurses and is the focus of the analysis in this paper. The authors provide de-identified dataset, i.e. ‘Altered Level of Consciousness’ to the public for reproducibility and further research purposes. Other remaining datasets in the manuscript are private and has not been approved to be released to the public.
