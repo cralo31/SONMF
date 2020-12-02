@@ -24,28 +24,25 @@ iter = 500               # Number of max iterations to run the algorithm
 full.1 = parallel.run(n, ncores, 1, size, values, iter, 1e-99)
 res.1 = mean.fun(full.1, 1)
 
-plot.fun(res.1, 1, 10, "1_10", 1:500, c(0, 1.7))   # Left
-plot.fun(res.1, 2, 30, "1_30", 1:500, c(0, 3.1))   # Middle
-plot.fun(res.1, 3, 50, "1_50", 1:500, c(0, 4.2))   # Right
+plot.fun(res.1, 1, 10, "1_10", 1:500, c(0.05, 0.55), T)  # Left
+plot.fun(res.1, 2, 30, "1_30", 1:500, c(0, 1.2), T)      # Right
+plot.fun(res.1, 3, 50, "1_50", 1:500, c(0, 1.6), T)      # Middle
 
-########################################################
 ## Scenario 2(Figure 3) ##
 full.2 = parallel.run(n, ncores, 2, size, values, iter, 1e-99)
 res.2 = mean.fun(full.2, 1)
 
-plot.fun(res.2, 1, 10, "2_10", 1:100, c(0.04, 0.31))   # Left
-plot.fun(res.2, 2, 30, "2_30", 1:100, c(0.04, 0.31))   # Middle
-plot.fun(res.2, 3, 50, "2_50", 1:100, c(0.04, 0.31))   # Right
+plot.fun(res.2, 1, 10, "2_10", 1:100, c(0.04, 0.2), T)   # Left
+plot.fun(res.2, 2, 30, "2_30", 1:100, c(0.04, 0.25), T)  # Middle
+plot.fun(res.2, 3, 50, "2_50", 1:100, c(0.04, 0.3), T)   # Right
 
-########################################################
 ## Scenario 3 (Figure 4) ##
 full.3 = parallel.run(n, ncores, 3, size, values, iter, 1e-99)
 res.3 = mean.fun(full.3, 1)
 
-plot.fun(res.3, 1, 10, "3_10", 1:500, c(0.079, 0.091))   # Left 
-plot.fun(res.3, 2, 30, "3_30", 1:500, c(0.04, 0.31))     # Middle
-plot.fun(res.3, 3, 50, "3_50", 1:500, c(0, 4.2))         # Right
-
+plot.fun(res.3, 1, 10, "3_10", 1:50, c(0.079, 0.091), F)  # Left
+plot.fun(res.3, 2, 30, "3_30", 1:50, c(0.07, 0.092), F)   # Middle
+plot.fun(res.3, 3, 50, "3_50", 1:50, c(0.06, 0.1), F)     # Right
 #==================================================================#
 # Run 500 iterations or until the tolerance level is reached 
 
@@ -268,28 +265,40 @@ mean.fun = function(list, mode) {
 }
 
 # Plot the log of the normalized residual for better visibility
-plot.fun = function(res, index, k, file, xrange, yrange) {
+plot.fun = function(res, index, k, file, xrange, yrange, nn) {
   
-    # Use the Cairo package for better plot resolution 
+  # Use the Cairo package for better plot resolution 
   # Outputs to local drive (Comment out if want to plot to console)
   png(filename=paste0(file, ".jpg"), 
-      type="cairo",
-      units="in", 
-      width=5, 
-      height=4, 
-      pointsize=12, 
-      res=144)
+  type="cairo",
+  units="in", 
+  width=5, 
+  height=4, 
+  pointsize=12, 
+  res=144)
   
   # Plot the figures
   res.temp = res[[index]]
   log.res = log(res.temp + 1)
+  
+  # Set up Y axis label if its k=10
+  ylabel = ifelse(k == 10, "log(residuals + 1)", "")
+  
   plot(log.res[xrange,1], col = "red", type = "l", lty = 2, lwd = 2, main = paste0("K = ", k), 
-       xlab = "Iterations", ylab = "", ylim = yrange)
+       xlab = "Iterations", ylab = ylabel, ylim = yrange, cex.lab = 1.5, cex.axis = 1.2)
+  
   lines(log.res[xrange,2], col = "black", type = "l", lwd = 2, lty = 3)
-  lines(log.res[xrange,3], col = "blue", type = "l", lwd = 2, lty = 4)
-  lines(log.res[xrange,4], col = "green", type = "l", lwd = 2, lty = 5)
-  abline(h = log(res$summary[1] + 1), col = "purple")
-  legend("topright", legend = c("SONMF", "NMF", "ONMF", "Semi", "True Error"),
-         col = c("red", "green", "blue", "black", "purple"), lty = c(2, 5, 4, 3, 1))
+  abline(h = log(res$error + 1), col = "purple")
+  
+  if (nn == T) {
+    lines(log.res[xrange,3], col = "blue", type = "l", lwd = 2, lty = 4)
+    lines(log.res[xrange,4], col = "green", type = "l", lwd = 2, lty = 5)
+    legend("topright", legend = c("SONMF", "NMF", "ONMF", "Semi", "True Error"),
+           col = c("red", "green", "blue", "black", "purple"), lty = c(2, 5, 4, 3, 1))
+  } else {
+    legend("topright", legend = c("SONMF", "Semi", "True Error"),
+           col = c("red", "black", "purple"), lty = c(2, 3, 1))
+  }
+
   dev.off()
 }

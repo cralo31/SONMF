@@ -6,14 +6,20 @@
 ### Run Simulation and Generate Results ###
 ###!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!###
 
-# Run all the remaining step sizes
-test.1 = wrap.run(runs, cores, n, ks, iter, tol, 0.01)    # Step size = 0.01
+runs = 100
+cores = 8
+n = 500
+ks = c(10, 30, 50)
+iter = 500
+tol = 1e-99
+
+# The "wrap.run" function here is from Section 5.2
+test.1 = wrap.run(runs, cores, n, ks, iter, tol, 0.05)    # Step size = 0.05
 test.2 = wrap.run(runs, cores, n, ks, iter, tol, 0.025)   # Step size = 0.025
-test.3 = wrap.run(runs, cores, n, ks, iter, tol, 0.05)    # Step size = 0.05
+test.3 = wrap.run(runs, cores, n, ks, iter, tol, 0.01)    # Step size = 0.01 (Default, used in Section 5.2)
 test.4 = wrap.run(runs, cores, n, ks, iter, tol, 0.005)   # Step size = 0.005
 test.5 = wrap.run(runs, cores, n, ks, iter, tol, 0.001)   # Step size = 0.001
 
-# Output Figure 8 
 plot.trends("bin_comp10", 1, 10, 1)
 plot.trends("bin_comp30", 2, 30, 1)
 plot.trends("bin_comp50", 3, 50, 1)
@@ -22,75 +28,9 @@ plot.trends("p_comp10", 1, 10, 2)
 plot.trends("p_comp30", 2, 30, 2)
 plot.trends("p_comp50", 3, 50, 2)
 
-###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
-###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
-# Functions to set up the simulation #
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
+###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
 
-# Run simulation for the binary case
-sim.bin = function(n, k, iter, tol, step) {
-  
-  # Matrix of Ones
-  ones = matrix(rep(1, n * n), n, n)
-  
-  # Create True F
-  F.true = matrix(rnorm(n * k, 0, 1), n, k)
-  
-  # Create True G
-  G.true = matrix(runif(n * k, 0, 1), n, k)
-  
-  # Compute True projection
-  F.proj = F.true %*% solve(t(F.true) %*% F.true) %*% t(F.true)
-  G.proj = G.true %*% solve(t(G.true) %*% G.true) %*% t(G.true)
-  
-  # Construct the true probability matrix, and consequently, 
-  # the observed binary matrix X after adding a noise matrix
-  FG.true = F.true %*% t(G.true) + matrix(rnorm(n^2, 0, 0.1), n, n)
-  p = ones / (ones + exp(-(FG.true))) 
-  p.proj = p %*% pseudoinverse(t(p) %*% p) %*% t(p)
-  X = matrix(rbinom(n*n, 1, p), n, n)
-  cost.t = mean(log(ones + exp(FG.true)) - X * (FG.true))
-  
-  # Simulation of SONMF for binary matrix #
-  
-  # Initialization for SONMF (Same as continuous case)
-  svd.x = svd(X)
-  # Force the first eigenvector to be strictly positive by multiplying -1 
-  if (svd.x$u[1,1] < 0) {F.init = svd.x$u[,1:k] * -1} else {F.init = svd.x$u[,1:k]}
-  G.init = t(X) %*% F.init; 
-  G.init[G.init < 0] = 0
-  
-  # SONMF Binary Version
-  ptm = proc.time()
-  bin.nmf = bin.test(X, k, F.init, G.init, "so_bin", p, iter, tol, step_bin = step)
-  bin.time = proc.time() - ptm
-  error1 = error.fun(bin.nmf$F, bin.nmf$G, F.proj, G.proj)
-  
-  ### Simulation of logNMF 
-  
-  # The SVD initialization does not work for logNMF
-  # Initialize with random matrix for logNMF
-  F.init.2 = matrix(runif(n * k, 0, 1), n, k)
-  G.init.2 = matrix(rnorm(n * k, 0, 1), n, k)
-  
-  # logNMF Binary Version
-  ptm = proc.time()
-  log.nmf = bin.test(X, k, F.init.2, G.init.2, "log_nmf", p, iter, tol)
-  log.time = proc.time() - ptm
-  error2 = error.fun(log.nmf$F, log.nmf$G, F.proj, G.proj)
-  
-  # Output the results
-  info = c(cost.t, bin.nmf$final_res, bin.nmf$final_ortho,
-           log.nmf$final_res, error1, error2, mean(bin.nmf$F == 0), mean(bin.nmf$G == 0),
-           mean(log.nmf$F == 0), mean(log.nmf$G == 0), bin.time[3], log.time[3])
-  
-  names(info) = c("true cost", "bin cost", "bin_orth" ,"log cost", "bin F", "bin G", "log_F", 
-                  "log_G","sobinF spa", "sobinG spa", "logF spa", 
-                  "logG spa", "bin time","log_time")
-  result = list(bin = bin.nmf$info, log = log.nmf$info, 
-                info = info)
-  
-  return(result)
-}
 
 # Run the binary simulation in parallel
 bin_comp = function(runs, cores, n, k, iter, tol, step) {
@@ -162,6 +102,72 @@ wrap.run = function(runs, cores, n, ks, iter, tol, step) {
   return (res)
 }
 
+# Run simulation for the binary case
+sim.bin = function(n, k, iter, tol, step) {
+  
+  # Matrix of Ones
+  ones = matrix(rep(1, n * n), n, n)
+  
+  # Create True F
+  F.true = matrix(rnorm(n * k, 0, 1), n, k)
+  
+  # Create True G
+  G.true = matrix(runif(n * k, 0, 1), n, k)
+  
+  # Compute True projection
+  F.proj = F.true %*% solve(t(F.true) %*% F.true) %*% t(F.true)
+  G.proj = G.true %*% solve(t(G.true) %*% G.true) %*% t(G.true)
+  
+  # Construct the true probability matrix, and consequently, 
+  # the observed binary matrix X after adding a noise matrix
+  FG.true = F.true %*% t(G.true) + matrix(rnorm(n^2, 0, 0.1), n, n)
+  p = ones / (ones + exp(-(FG.true))) 
+  p.proj = p %*% pseudoinverse(t(p) %*% p) %*% t(p)
+  X = matrix(rbinom(n*n, 1, p), n, n)
+  cost.t = mean(log(ones + exp(FG.true)) - X * (FG.true))
+  
+  # Simulation of SONMF for binary matrix #
+  
+  # Initialization for SONMF (Same as continuous case)
+  svd.x = svd(X)
+  # Force the first eigenvector to be strictly positive by multiplying -1 
+  if (svd.x$u[1,1] < 0) {F.init = svd.x$u[,1:k] * -1} else {F.init = svd.x$u[,1:k]}
+  G.init = t(X) %*% F.init; 
+  G.init[G.init < 0] = 0
+  
+  # SONMF Binary Version
+  ptm = proc.time()
+  bin.nmf = bin.test(X, k, F.init, G.init, "so_bin", p, iter, tol, step_bin = step)
+  bin.time = proc.time() - ptm
+  error1 = error.fun(bin.nmf$F, bin.nmf$G, F.proj, G.proj)
+  
+  ### Simulation of logNMF 
+  
+  # The SVD initialization does not work for logNMF
+  # Initialize with random matrix for logNMF
+  F.init.2 = matrix(runif(n * k, 0, 1), n, k)
+  G.init.2 = matrix(rnorm(n * k, 0, 1), n, k)
+  
+  # logNMF Binary Version
+  ptm = proc.time()
+  log.nmf = bin.test(X, k, F.init.2, G.init.2, "log_nmf", p, iter, tol)
+  log.time = proc.time() - ptm
+  error2 = error.fun(log.nmf$F, log.nmf$G, F.proj, G.proj)
+  
+  # Output the results
+  info = c(cost.t, bin.nmf$final_res, bin.nmf$final_ortho,
+           log.nmf$final_res, error1, error2, mean(bin.nmf$F == 0), mean(bin.nmf$G == 0),
+           mean(log.nmf$F == 0), mean(log.nmf$G == 0), bin.time[3], log.time[3])
+  
+  names(info) = c("true cost", "bin cost", "bin_orth" ,"log cost", "bin F", "bin G", "log_F", 
+                  "log_G","sobinF spa", "sobinG spa", "logF spa", 
+                  "logG spa", "bin time","log_time")
+  result = list(bin = bin.nmf$info, log = log.nmf$info, 
+                info = info)
+  
+  return(result)
+}
+
 # Plot the convergence trends for different step sizes together (section A.4)
 plot.trends = function(file, index, k, mode) {
   
@@ -177,25 +183,27 @@ plot.trends = function(file, index, k, mode) {
   
   # Mode 1 to plot the loss function
   if (mode == 1) {
-    plot(test.3[[index]]$bin[,2], col = "blue", type = "l", lty = 2, 
-         lwd = 2, main = paste0("K = ", k),xlab = "Iterations", ylab = "Residuals")
+    plot(test.1[[index]]$bin[,2], col = "blue", type = "l", lty = 2, 
+         lwd = 2, main = paste0("K = ", k),xlab = "Iterations", ylab = "Residuals", 
+         cex.lab = 1.5, cex.axis = 1.2)
     lines(test.2[[index]]$bin[,2], col = "black", pch = 10, type = "l", lwd = 2, lty = 3)
-    lines(test.1[[index]]$bin[,2], col = "red", pch = 10, type = "l", lwd = 2, lty = 4)
+    lines(test.3[[index]]$bin[,2], col = "red", pch = 10, type = "l", lwd = 2, lty = 4)
     lines(test.4[[index]]$bin[,2], col = "green", pch = 10, type = "l", lwd = 2, lty = 5)
     lines(test.5[[index]]$bin[,2], col = "darkblue", pch = 10, type = "l", lwd = 2, lty = 6)
     abline(h = test.1[[index]]$summary[1], col = "purple")    
     legend("topright", legend = c("0.05", "0.025", "0.01", "0.005", "0.001", "True Error"),
            col = c("blue", "black", "red", "green", "darkblue", "purple"), lty = c(2, 3, 4, 5, 6, 1), 
            cex = 0.9)  
-  
-  # Mode 2 to plot the difference in probability matrix
+    
+    # Mode 2 to plot the difference in probability matrix
   } else if (mode == 2) {
-    temp = test.3[[index]]$bin[,3]
-    plot(test.3[[index]]$bin[,3], col = "blue", type = "l", 
+    temp = test.1[[index]]$bin[,3]
+    plot(temp, col = "blue", type = "l", 
          lty = 2, lwd = 2, main = paste0("K = ", k), xlab = "Iterations", 
-         ylab = "Diff in Probability Matrix", ylim = c(min(temp) - 10, max(temp) + 10))
+         ylab = "Diff in Probability Matrix", ylim = c(min(temp) - 10, max(temp) + 10),
+         cex.lab = 1.5, cex.axis = 1.2)
     lines(test.2[[index]]$bin[,3], col = "black", pch = 10, type = "l", lwd = 2, lty = 3)
-    lines(test.1[[index]]$bin[,3], col = "red", pch = 10, type = "l", lwd = 2, lty = 4)
+    lines(test.3[[index]]$bin[,3], col = "red", pch = 10, type = "l", lwd = 2, lty = 4)
     lines(test.4[[index]]$bin[,3], col = "green", pch = 10, type = "l", lwd = 2, lty = 5)
     lines(test.5[[index]]$bin[,3], col = "darkblue", pch = 10, type = "l", lwd = 2, lty = 6)
     legend("topright", legend = c("0.05", "0.025", "0.01", "0.005", "0.001"),

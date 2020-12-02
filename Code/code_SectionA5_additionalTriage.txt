@@ -36,68 +36,8 @@ elbplot(elb_sonmf)
 ###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
 ###+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++###
 
-############################################################################
-clean.dat = function(dset, weight) {
-  
-  # Retain only notes and response variable
-  dat = dset[,c(12,1)]
-  colnames(dat) = c("notes", "y")
-  dat$y = ifelse(dat$y == "D", 0, 1)
-  
-  # Some manual words cleaning 
-  dat$notes = gsub("c/o","co", dat$notes, ignore.case=TRUE)
-  dat$notes = gsub("NA|Unknown","", dat$notes, ignore.case = TRUE )
-  dat$notes = gsub("abd|abdo|abdomen|abdomin|abdominal","abdominal", dat$notes,ignore.case = TRUE)
-  dat$notes = gsub("urination|urinary|urinari|urine|urin", "urine", dat$notes,ignore.case = TRUE)
-  dat$notes = gsub("wor|wors|worse|worsen","worsen", dat$notes,ignore.case = TRUE)
-  dat$notes = gsub("bleed|blood","blood",dat$notes,ignore.case = TRUE)
-  dat$notes = gsub("vomiting|vomiting|vomitting","vomit",dat$notes,ignore.case = TRUE)
-  dat$notes = gsub("triag|dat","dat",dat$notes,ignore.case = TRUE)
-  dat$notes = gsub("unabl|unable","unable",dat$notes,ignore.case = TRUE)
-  dat$notes = gsub("nausea|nauseat|nauseated|nauseating|nauseate","nauseat",dat$notes,ignore.case = TRUE)
-  dat$notes = gsub("non|no","no", dat$notes, ignore.case = TRUE)
-  dat$notes = gsub("lt","left",dat$notes,ignore.case = TRUE)
-  dat$notes = gsub("rt","right",dat$notes,ignore.case = TRUE)
-  dat$notes = gsub( "\\<n v d\\> | \\<nv d\\> |  \\<n vd\\>", "nvd", dat$notes, ignore.case = TRUE)
-  dat$notes = gsub( "\\<n v\\>", "nv ", dat$notes, ignore.case = TRUE)
-  dat$notes = gsub( "\\<v d\\>", "vd ", dat$notes, ignore.case = TRUE)
-  dat$notes = gsub("D/T", "dt", dat$notes, ignore.case = TRUE)
-  dat$notes = gsub( "[^[:alnum:][:space:]']", " ", dat$notes)
-  
-  # Standard text mining data cleaning techniques via tm package
-  # Remove numbers, punctuation, and most stop words (ecluding negation) 
-  # Lower case all words
-  oldw <- getOption("warn")
-  corpus = VCorpus(VectorSource(dat$notes))
-  cleanDataCorpus <- tm_map(corpus, removePunctuation) 
-  cleanDataCorpus <- tm_map(cleanDataCorpus, removeNumbers)
-  cleanDataCorpus <- tm_map(cleanDataCorpus, tolower)
-  exceptions <- grep(pattern = "n't", x = stopwords(), value = TRUE)
-  my_stopwords <- setdiff(stopwords("en"), exceptions)
-  cleanDataCorpus <- tm_map(cleanDataCorpus, removeWords, my_stopwords)
-  
-  # Output into plain text document form
-  cleanDataCorpus <- tm_map(cleanDataCorpus, stemDocument)
-  cleanDataCorpus <- tm_map(cleanDataCorpus, PlainTextDocument)
-  on.exit(options(warn = oldw))
-  
-  # Continuous weighing
-  if (weight == "tfidf") {
-      dtm = DocumentTermMatrix(cleanDataCorpus, 
-                               control=list(weighting = function(x) weightTfIdf(x, normalize = FALSE)))  
-  } else {
-      # Binary weighing
-      dtm = DocumentTermMatrix(cleanDataCorpus, control=list(weighting = function(x) weightBin(x)))
-  }
-  
-  # Output a bag-of-words matrix
-  dtm.m = as.matrix(dtm)
-  word.mat = data.frame(cbind(dat$y, dtm.m))
-  
-  return(word.mat)
-}
+################################################################
 
-############################################################################
 # Generate k topic vectors for a given data set
 topics = function(word.mat, k, method, seed) {
   
@@ -118,17 +58,13 @@ topics = function(word.mat, k, method, seed) {
   return(list(F = F.mat, G = G.mat))
 }
 
+
 # function to calculate norm of a vector
 norm_vec <- function(x) sqrt(sum(x^2))
 
-############################################################################
-# Output the top word-topic vectors
-
 # Organize the topics according to the corresponding norm in G
 # Analgous to SVD, where the eigenvectors (F) are sorted in descending order
-# according to the eigenvalues (norm of G). Since F is orthonormal, the eigenvalues
-# are all absorbed into the column norms of G.
-
+# according to the eigenvalues (norm of G)
 top.words = function(mat.list, num_topics, num_words) {
   
   F.m = mat.list$F; G.m = mat.list$G
@@ -175,8 +111,10 @@ clustMember = function(soMat, color, stri) {
   nmf.count = data.frame(cbind(nmf.count, 1:length(nmf.count)))
   
   densityplot(nmf.count$nmf.count, col = color, 
-              main = paste0("Density Plot: Number of Clusters Each Word Belongs to ", stri), 
-              xlab = "Number of Topic Memberships", ylab = "Density")
+              main = list(paste0("Density Plot: Number of Clusters Each Word Belongs to ", stri), cex = 1.2),
+              xlab = list("Number of Topic Memberships", cex = 1.5), 
+              ylab = list("Density", cex = 1.5),
+              lwd = 2)
 }
 
 
@@ -188,6 +126,7 @@ set.seed(1031)
 # Output the elbow plot
 elbplot = function(mfac) {
   plot(mfac$topWords$norm, type = "l", col = "blue", lwd = 2, 
-     main = "Norm of the Word-Topic Vectors Generated by SONMF on ALC", ylab = "Norm", xlab = "Topics")
+     main = "Norm of the Word-Topic Vectors Generated by SONMF on ALC", ylab = "Norm", xlab = "Topics",
+     cex.lab = 1.5, cex.axis = 1.2, cex.main = 1.5)
   points(mfac$topWords$norm, pch = 15, col = "blue")
 }
