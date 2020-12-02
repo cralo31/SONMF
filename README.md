@@ -9,6 +9,6 @@ The ‘Altered Level of Consciousness’ dataset has 5220 observations (patient 
 # Code 
 The code has been divided into multiple ‘.txt’ subfiles, according to the corresponding sections in the manuscript. Each code subfile is independent from the rest except for the “code_Setup.txt” file. The first step is to run the “code_Setup.txt” file to install all the relevant packages to ensure the code runs properly. This file also provides some examples for the ‘MatrixFact’ package, which is an R package developed by the authors for the proposed method, along with other NMF methods compared in the manuscript. The ‘MatrixFact’ package can be downloaded at ‘cralo31/MatrixFact’ on Github.
 
-All results in the simulation sections are seeded and reproducible. 
-All results regarding the ‘Altered Level of Consciousness’ dataset are seeded and reproducible. 
+All results in the simulation sections are seeded and reproducible. In addition, all results regarding the ‘Altered Level of Consciousness’ dataset are seeded and reproducible. 
 
+Note that since the remaining triage note datasets are not available publicly, part of the manuscript is not fully reproducible. However, all the remaining datasets utilize the same analysis pipeline as the “Altered Level of Consciousness” dataset. Therefore, the provided code and dataset is sufficient for general reproducibility of our manuscript.
