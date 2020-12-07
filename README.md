@@ -22,11 +22,15 @@ Below are the approximate runtimes for each major code chunk.
 
 3.	The results in Section 6.1 are very computationally intensive to produce. It is recommended to use HPC clusters for these analyses. In the manuscript, 20 CPU cores were utilized in parallel to produce the results in Table 5 and Table 6, and consequently, Table 7.
 
-a.	Section 6.1 (triage bag-of-words): It takes up to 25 hours to run 20 trials (5-fold CV per trial) in parallel using 20 CPU cores to run the four supervised learning models on the ‘Altered Level of Consciousness’ bag-of-words matrix (Table 5). In particular, the random forest model, along with the considered tuning parameters, takes about 18 hours to run to run 20 trials in parallel using 20 CPU cores. The other three models take a much shorter time, with 2 hours for penalized linear regression, 3 hours for KNN, and 1.5 hours for SVM respectively. On the other hand, it can take more than 50 hours to produce the results for the larger datasets, i.e. ‘Cough’ and ‘Lower Extremity Injury’, using the same setup.
+\begin{itemize}
 
-b.	Section 6.1 (triage SONMF): Depending on the NMF method and factorization rank, it takes anywhere between 15 minutes to 4 hours to produce one line of classification result in Table 6, given that the 20 trials were ran in parallel with 20 cores. The larger the factorization rank, the longer it takes to run the matrix factorization method, and hence the longer it takes to produce a result.  
+\item	Section 6.1 (triage bag-of-words): It takes up to 25 hours to run 20 trials (5-fold CV per trial) in parallel using 20 CPU cores to run the four supervised learning models on the ‘Altered Level of Consciousness’ bag-of-words matrix (Table 5). In particular, the random forest model, along with the considered tuning parameters, takes about 18 hours to run to run 20 trials in parallel using 20 CPU cores. The other three models take a much shorter time, with 2 hours for penalized linear regression, 3 hours for KNN, and 1.5 hours for SVM respectively. On the other hand, it can take more than 50 hours to produce the results for the larger datasets, i.e. ‘Cough’ and ‘Lower Extremity Injury’, using the same setup.
 
-c.	Section 6.1 (triage factorization cost and sparsity): Depending on the NMF method and factorization rank, it takes anywhere between 3 minutes to 40 minutes to produce one line of result cost and sparsity result in Table 6, given that the 20 trials were ran in parallel with 20 cores. The larger the factorization rank, the longer it takes to run the matrix factorization method, and hence the longer it takes to produce a result.  
+\item	Section 6.1 (triage SONMF): Depending on the NMF method and factorization rank, it takes anywhere between 15 minutes to 4 hours to produce one line of classification result in Table 6, given that the 20 trials were ran in parallel with 20 cores. The larger the factorization rank, the longer it takes to run the matrix factorization method, and hence the longer it takes to produce a result.  
+
+\item	Section 6.1 (triage factorization cost and sparsity): Depending on the NMF method and factorization rank, it takes anywhere between 3 minutes to 40 minutes to produce one line of result cost and sparsity result in Table 6, given that the 20 trials were ran in parallel with 20 cores. The larger the factorization rank, the longer it takes to run the matrix factorization method, and hence the longer it takes to produce a result.  
+
+\end{itemize}
 
 4.	Section 6.2 (triage topics): It takes around 5 minutes to run the functions to generate the word-topics (Figure 6, Table 8,9) and document-topics (Figure 7, Table 10) for the ‘Altered Level of Consciousness’ dataset. Note that the two datasets used in the manuscript, i.e. “Lower Extremity Injury” and “Symptoms of Stroke” are not available to the public.
 
@@ -36,7 +40,5 @@ c.	Section 6.1 (triage factorization cost and sparsity): Depending on the NMF me
 
 7.	Section A.4 (binary SONMF step size): It takes around 450 minutes to run 100 trials for the 5 different step sizes (~90 minutes each) across 3 different rank settings with 8 cores running in parallel. The results of the 5 different step sizes are then combined to plot Figure 10.
 
-8.	Section A.5
-
-a.	Section A.5 (triage additional): The cluster membership (Figure 11) plot and the elbow plot (Figure 12) takes about 3 minutes to produce.
+8.	a.	Section A.5 (triage additional): The cluster membership (Figure 11) plot and the elbow plot (Figure 12) takes about 3 minutes to produce.
 b.	Section A.5 (triage all data): Table 10 – 15 are computationally intensive to produce and the time required depends on the size of the dataset, the NMF method and the factorization rank. For example, the largest two datasets, ‘Cough’ and ‘Lower Extremity Injury’, takes anywhere between 45 minutes to 20 hours to run 20 trials in parallel with 20 cores for the four models on one NMF method + rank setting. 
